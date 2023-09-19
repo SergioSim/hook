@@ -1,0 +1,49 @@
+version: '3.4'
+
+services:
+  mysql:
+    image: mysql:5.7.43
+    cap_add:
+      - SYS_NICE
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${HOOK_MOODLE_MYSQL_ROOT_PASSWORD:-password}
+      MYSQL_DATABASE: ${HOOK_MOODLE_MYSQL_DATABASE:-moodle}
+      MYSQL_USER: ${HOOK_MOODLE_MYSQL_USER:-moodle}
+      MYSQL_PASSWORD: ${HOOK_MOODLE_MYSQL_PASSWORD:-password}
+    volumes:
+      - mysqldata:/var/lib/mysql
+    command: >
+        --character-set-server=utf8mb4
+        --collation-server=utf8mb4_bin
+        --innodb_file_format=barracuda
+        --innodb_file_per_table=On
+        --innodb_large_prefix=On
+
+  moodle:
+    image: moodlehq/moodle-php-apache:8.1-bullseye
+    ports:
+      - 8080:80
+    volumes:
+      - html:/var/www/html
+      - moodledata:/var/www/moodledata
+    depends_on:
+      - mysql
+
+volumes:
+  html:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/moodle/html
+
+  moodledata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/moodle/moodledata
+
+  mysqldata:
+    driver: local

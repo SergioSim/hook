@@ -26,8 +26,9 @@ $CFG->directorypermissions = 0777;
 $CFG->smtphosts            = 'mailpit:1025';
 $CFG->noreplyaddress       = 'noreply@example.com';
 
-$CFG->debug                = (E_ALL | E_STRICT);
-$CFG->cronclionly          = 0;
+$CFG->debug                    = (E_ALL | E_STRICT);
+$CFG->cronclionly              = 0;
+$CFG->curlsecurityblockedhosts = "127.0.0.1";
 
 require_once(__DIR__ . '/lib/setup.php');
 

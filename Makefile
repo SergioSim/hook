@@ -10,13 +10,21 @@ COMPOSE                      = DOCKER_USER=$(DOCKER_USER) docker compose
 COMPOSE_RUN                  = $(COMPOSE) run --rm
 
 # -- Moodle
-HOOK_MOODLE_TAG              ?= v4.1.5
-HOOK_MOODLE_GIT              ?= git://git.moodle.org/moodle.git
-HOOK_MOODLE_ADMIN_PASSWORD   ?= password
-HOOK_MOODLE_ADMIN_EMAIL      ?= admin@example.com
-HOOK_MOODLE_SITE_NAME        ?= Hook
+HOOK_MOODLE_TAG                  ?= v4.1.5
+HOOK_MOODLE_GIT                  ?= git://git.moodle.org/moodle.git
+HOOK_MOODLE_ADMIN_PASSWORD       ?= password
+HOOK_MOODLE_ADMIN_EMAIL          ?= admin@example.com
+HOOK_MOODLE_SITE_NAME            ?= Hook
+HOOK_MOODLE_DEMOCOURSE_1         ?= https://moodle.net/.pkg/@moodlenet/ed-resource/dl/ed-resource/uHFOlHUh/063_PFB1.mbz
+HOOK_MOODLE_PLUGIN_LOGSTORE_GIT  ?= https://github.com/xAPI-vle/moodle-logstore_xapi.git
+HOOK_MOODLE_PLUGIN_LOGSTORE_TAG  ?= v4.7.0
 
-HOOK_MOODLE_DEMOCOURSE_1     ?= https://moodle.net/.pkg/@moodlenet/ed-resource/dl/ed-resource/uHFOlHUh/063_PFB1.mbz
+# -- Ralph
+HOOK_RALPH_ELASTICSEARCH_PORT     ?= 9200
+HOOK_RALPH_ELASTICSEARCH_INDEX    ?= statements
+HOOK_RALPH_LRS_AUTH_USER_NAME     ?= ralph
+HOOK_RALPH_LRS_AUTH_USER_PASSWORD ?= password
+HOOK_RALPH_LRS_AUTH_USER_SCOPE    ?= all
 
 default: help
 
@@ -34,8 +42,24 @@ data/moodle/html/config.php:
 data/moodle/html/demo_course_1.mbz:
 	@$(COMPOSE_RUN) curl $(HOOK_MOODLE_DEMOCOURSE_1) -o /var/www/html/demo_course_1.mbz
 
+data/moodle/html/admin/tool/log/store/xapi:
+	mkdir -p data/moodle/html/admin/tool/log/store
+	git clone \
+		--depth 1 \
+		--branch $(HOOK_MOODLE_PLUGIN_LOGSTORE_TAG) \
+		$(HOOK_MOODLE_PLUGIN_LOGSTORE_GIT) \
+		data/moodle/html/admin/tool/log/store/xapi
+
 data/moodle/moodledata:
 	mkdir -p data/moodle/moodledata
+
+data/ralph/auth.json:
+	mkdir -p data/ralph
+	@$(COMPOSE_RUN) ralph ralph auth \
+		-u $(HOOK_RALPH_LRS_AUTH_USER_NAME) \
+		-p $(HOOK_RALPH_LRS_AUTH_USER_PASSWORD) \
+		-s $(HOOK_RALPH_LRS_AUTH_USER_SCOPE) \
+		-w
 
 # ======================================================================================
 # RULES
@@ -57,7 +81,9 @@ build: \
 	data/moodle/html \
 	data/moodle/moodledata \
 	data/moodle/html/config.php \
-	data/moodle/html/demo_course_1.mbz
+	data/moodle/html/demo_course_1.mbz \
+	data/moodle/html/admin/tool/log/store/xapi \
+	data/ralph/auth.json
 	$(COMPOSE) build moodle
 .PHONY: build
 
@@ -83,6 +109,18 @@ migrate:  ## run moodle database migrations
 		--file=/var/www/html/demo_course_1.mbz \
 		--categoryid=1 \
 		|| true
+	@$(COMPOSE_RUN) moodle /bin/bash -c "\
+		php admin/cli/cfg.php --name=endpoint --component=logstore_xapi --set=http://ralph/xAPI/statements ; \
+		php admin/cli/cfg.php --name=username --component=logstore_xapi --set=$(HOOK_RALPH_LRS_AUTH_USER_NAME) ; \
+		php admin/cli/cfg.php --name=password --component=logstore_xapi --set=$(HOOK_RALPH_LRS_AUTH_USER_PASSWORD) ; \
+		php admin/cli/cfg.php --name=enabled_stores --component=tool_log --set=logstore_standard,logstore_xapi"
+
+	@$(COMPOSE) up -d elasticsearch
+	@$(COMPOSE_RUN) dockerize -wait tcp://elasticsearch:9200 -timeout 60s
+	@$(COMPOSE_RUN) curl -X PUT http://elasticsearch:9200/$(HOOK_RALPH_ELASTICSEARCH_INDEX)
+	@$(COMPOSE_RUN) curl -X PUT http://elasticsearch:9200/$(HOOK_RALPH_ELASTICSEARCH_INDEX)/_settings \
+		-H 'Content-Type: application/json' \
+		-d '{"index": {"number_of_replicas": 0}}'
 .PHONY: migrate
 
 run: ## run the moodle container

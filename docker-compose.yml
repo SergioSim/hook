@@ -4,15 +4,28 @@ services:
   curl:
     image: curlimages/curl:8.3.0
     user: ${DOCKER_USER:-1000}
-    # restart: always
+    restart: always
     volumes:
-      - html:/var/www/html
-    command: [
-      "/bin/sh",
-      "-c",
-      "--",
-      "trap : TERM INT; while :; do curl http://moodle/admin/cron.php; sleep 60; done & wait"
-    ]
+      - ./data/moodle/html:/var/www/html
+    command:
+      - /bin/sh
+      - -c
+      - "trap : TERM INT; while :; do curl http://moodle/admin/cron.php; sleep 60; done & wait"
+
+  elasticsearch:
+    image: elasticsearch:8.10.1
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    ports:
+      - ${HOOK_RALPH_ELASTICSEARCH_PORT:-9200}:9200
+    volumes:
+      - elasticsearchdata:/usr/share/elasticsearch/data
+    mem_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
 
   dockerize:
     image: jwilder/dockerize:0.6.1
@@ -38,12 +51,13 @@ services:
     ports:
       - ${HOOK_MOODLE_APACHE_PORT:-8080}:80
     volumes:
-      - html:/var/www/html
-      - moodledata:/var/www/moodledata
+      - ./data/moodle/html:/var/www/html
+      - ./data/moodle/moodledata:/var/www/moodledata
     depends_on:
       - mailpit
       - mysql
       - curl
+      - ralph
 
   mysql:
     image: mysql:5.7.43
@@ -64,20 +78,29 @@ services:
         --innodb_file_per_table=On
         --innodb_large_prefix=On
 
-volumes:
-  html:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/data/moodle/html
+  ralph:
+    image: fundocker/ralph:3.9.0
+    user: ${DOCKER_USER:-1000}
+    environment:
+      RALPH_AUTH_FILE: /app/auth.json
+      RALPH_BACKENDS__DATABASE__ES__HOSTS: http://elasticsearch:9200
+      RALPH_BACKENDS__DATABASE__ES__INDEX: ${HOOK_RALPH_ELASTICSEARCH_INDEX:-statements}
+      RALPH_RUNSERVER_PORT: 80
+    command:
+      - ralph
+      - "-v"
+      - DEBUG
+      - runserver
+      - "-b"
+      - "es"
+    volumes:
+      - ./data/ralph:/app
+    depends_on:
+      - elasticsearch
 
-  moodledata:
+volumes:
+  elasticsearchdata:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/data/moodle/moodledata
 
   mysqldata:
     driver: local

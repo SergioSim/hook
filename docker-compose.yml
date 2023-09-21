@@ -1,6 +1,50 @@
 version: '3.4'
 
 services:
+  curl:
+    image: curlimages/curl:8.3.0
+    user: ${DOCKER_USER:-1000}
+    # restart: always
+    volumes:
+      - html:/var/www/html
+    command: [
+      "/bin/sh",
+      "-c",
+      "--",
+      "trap : TERM INT; while :; do curl http://moodle/admin/cron.php; sleep 60; done & wait"
+    ]
+
+  dockerize:
+    image: jwilder/dockerize:0.6.1
+
+  mailpit:
+    image: axllent/mailpit:v1.8.4
+    restart: unless-stopped
+    ports:
+      - ${HOOK_MAILPIT_UI_PORT:-8025}:8025
+
+  moodle:
+    build:
+      context: .
+      args:
+        DOCKER_USER: ${DOCKER_USER:-1000}
+    user: ${DOCKER_USER:-1000}
+    environment:
+      MOODLE_DATABASE_NAME: ${HOOK_MOODLE_MYSQL_DATABASE:-moodle}
+      MOODLE_DATABASE_USER: ${HOOK_MOODLE_MYSQL_USER:-moodle}
+      MOODLE_DATABASE_PASSWORD: ${HOOK_MOODLE_MYSQL_PASSWORD:-password}
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    ports:
+      - ${HOOK_MOODLE_APACHE_PORT:-8080}:80
+    volumes:
+      - html:/var/www/html
+      - moodledata:/var/www/moodledata
+    depends_on:
+      - mailpit
+      - mysql
+      - curl
+
   mysql:
     image: mysql:5.7.43
     cap_add:
@@ -19,16 +63,6 @@ services:
         --innodb_file_format=barracuda
         --innodb_file_per_table=On
         --innodb_large_prefix=On
-
-  moodle:
-    image: moodlehq/moodle-php-apache:8.1-bullseye
-    ports:
-      - 8080:80
-    volumes:
-      - html:/var/www/html
-      - moodledata:/var/www/moodledata
-    depends_on:
-      - mysql
 
 volumes:
   html:

@@ -29,6 +29,9 @@ $CFG->noreplyaddress       = 'noreply@example.com';
 $CFG->debug                    = (E_ALL | E_STRICT);
 $CFG->cronclionly              = 0;
 $CFG->curlsecurityblockedhosts = "127.0.0.1";
+$CFG->enablewebservices        = 1;
+$CFG->enablewsdocumentation    = 1;
+$CFG->webserviceprotocols      = "rest";
 
 require_once(__DIR__ . '/lib/setup.php');
 

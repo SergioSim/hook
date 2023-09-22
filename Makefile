@@ -6,7 +6,7 @@ SHELL := /bin/bash
 DOCKER_UID                   = $(shell id -u)
 DOCKER_GID                   = $(shell id -g)
 DOCKER_USER                  = $(DOCKER_UID):$(DOCKER_GID)
-COMPOSE                      = DOCKER_USER=$(DOCKER_USER) docker compose
+COMPOSE                      = DOCKER_USER="$(DOCKER_USER)" docker compose
 COMPOSE_RUN                  = $(COMPOSE) run --rm
 
 # -- Moodle
@@ -19,12 +19,22 @@ HOOK_MOODLE_DEMOCOURSE_1         ?= https://moodle.net/.pkg/@moodlenet/ed-resour
 HOOK_MOODLE_PLUGIN_LOGSTORE_GIT  ?= https://github.com/xAPI-vle/moodle-logstore_xapi.git
 HOOK_MOODLE_PLUGIN_LOGSTORE_TAG  ?= v4.7.0
 
+# -- MySQL
+HOOK_MOODLE_MYSQL_ROOT_PASSWORD  ?= password
+HOOK_MOODLE_MYSQL_DATABASE       ?= moodle
+HOOK_MOODLE_MYSQL_USER           ?= moodle
+HOOK_MOODLE_MYSQL_PASSWORD       ?= password
+
 # -- Ralph
 HOOK_RALPH_ELASTICSEARCH_PORT     ?= 9200
 HOOK_RALPH_ELASTICSEARCH_INDEX    ?= statements
 HOOK_RALPH_LRS_AUTH_USER_NAME     ?= ralph
 HOOK_RALPH_LRS_AUTH_USER_PASSWORD ?= password
 HOOK_RALPH_LRS_AUTH_USER_SCOPE    ?= all
+
+# -- Hook
+HOOK_MOODLE_WEBSERVICE_TOKEN         ?= 32323232323232323232323232323232
+HOOK_MOODLE_WEBSERVICE_PRIVATE_TOKEN ?= 6464646464646464646464646464646464646464646464646464646464646464
 
 default: help
 
@@ -105,6 +115,12 @@ migrate:  ## run moodle database migrations
 		--adminpass=$(HOOK_MOODLE_ADMIN_PASSWORD) \
 		--adminemail=$(HOOK_MOODLE_ADMIN_EMAIL) \
 		|| true
+	HOOK_MOODLE_MYSQL_USER="$(HOOK_MOODLE_MYSQL_USER)" \
+		HOOK_MOODLE_MYSQL_PASSWORD="$(HOOK_MOODLE_MYSQL_PASSWORD)" \
+		HOOK_MOODLE_MYSQL_DATABASE="$(HOOK_MOODLE_MYSQL_DATABASE)" \
+		HOOK_MOODLE_WEBSERVICE_TOKEN="$(HOOK_MOODLE_WEBSERVICE_TOKEN)" \
+		HOOK_MOODLE_WEBSERVICE_PRIVATE_TOKEN="$(HOOK_MOODLE_WEBSERVICE_PRIVATE_TOKEN)" \
+		 ./config/mysql/webservices.sh
 	@$(COMPOSE_RUN) moodle php admin/cli/restore_backup.php \
 		--file=/var/www/html/demo_course_1.mbz \
 		--categoryid=1 \

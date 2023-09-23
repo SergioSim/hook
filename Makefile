@@ -33,8 +33,10 @@ HOOK_RALPH_LRS_AUTH_USER_PASSWORD ?= password
 HOOK_RALPH_LRS_AUTH_USER_SCOPE    ?= all
 
 # -- Hook
+HOOK_MOODLE_URL                      ?= http://moodle
 HOOK_MOODLE_WEBSERVICE_TOKEN         ?= 32323232323232323232323232323232
 HOOK_MOODLE_WEBSERVICE_PRIVATE_TOKEN ?= 6464646464646464646464646464646464646464646464646464646464646464
+HOOK_API_PORT                        ?= 8000
 
 default: help
 
@@ -79,14 +81,14 @@ clean: ## remove local files
 	rm -rf data
 .PHONY: clean
 
-bootstrap: ## ## bootstrap the project for development
+bootstrap: ## bootstrap the project for development
 bootstrap: \
 	build \
 	migrate \
 	run
 .PHONY: bootstrap
 
-build: ## build the moodle container
+build: ## build the hook and moodle containers
 build: \
 	data/moodle/html \
 	data/moodle/moodledata \
@@ -94,15 +96,56 @@ build: \
 	data/moodle/html/demo_course_1.mbz \
 	data/moodle/html/admin/tool/log/store/xapi \
 	data/ralph/auth.json
-	$(COMPOSE) build moodle
+	$(COMPOSE) build hook moodle
 .PHONY: build
 
 down: ## remove containers, volumes and images
 	@$(COMPOSE) down -v --remove-orphans #--rmi all
 .PHONY: down
 
+# Nota bene: Black should come after isort just in case they don't agree...
+lint: ## lint python sources
+lint: \
+  lint-isort \
+  lint-black \
+  lint-flake8 \
+  lint-pylint \
+  lint-bandit \
+  lint-pydocstyle
+.PHONY: lint
+
+lint-black: ## lint python sources with black
+	@echo 'lint:black started…'
+	@$(COMPOSE_RUN) hook black hook tests
+.PHONY: lint-black
+
+lint-flake8: ## lint python sources with flake8
+	@echo 'lint:flake8 started…'
+	@$(COMPOSE_RUN) hook flake8 hook tests
+.PHONY: lint-flake8
+
+lint-isort: ## automatically re-arrange python imports
+	@echo 'lint:isort started…'
+	@$(COMPOSE_RUN) hook isort --atomic hook tests
+.PHONY: lint-isort
+
+lint-pylint: ## lint python sources with pylint
+	@echo 'lint:pylint started…'
+	@$(COMPOSE_RUN) hook pylint hook tests
+.PHONY: lint-pylint
+
+lint-bandit: ## lint python sources with bandit
+	@echo 'lint:bandit started…'
+	@$(COMPOSE_RUN) hook bandit -qr hook
+.PHONY: lint-bandit
+
+lint-pydocstyle: ## lint Python docstrings with pydocstyle
+	@echo 'lint:pydocstyle started…'
+	@$(COMPOSE_RUN) hook pydocstyle hook tests
+.PHONY: lint-pydocstyle
+
 logs: ## display moodle logs (follow mode)
-	@$(COMPOSE) logs -f moodle
+	@$(COMPOSE) logs -f
 .PHONY: logs
 
 migrate:  ## run moodle database migrations
@@ -139,8 +182,8 @@ migrate:  ## run moodle database migrations
 		-d '{"index": {"number_of_replicas": 0}}'
 .PHONY: migrate
 
-run: ## run the moodle container
-	@$(COMPOSE) up -d moodle
+run: ## run the hook and moodle containers
+	@$(COMPOSE) up -d hook
 .PHONY: run
 
 status: ## an alias for "docker compose ps"
@@ -150,6 +193,11 @@ status: ## an alias for "docker compose ps"
 stop: ## stop containers
 	@$(COMPOSE) stop
 .PHONY: stop
+
+test: ## run tests
+test: run
+	@$(COMPOSE_RUN) hook pytest
+.PHONY: test
 
 # -- Misc
 help:

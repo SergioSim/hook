@@ -12,6 +12,9 @@ services:
       - -c
       - "trap : TERM INT; while :; do curl http://moodle/admin/cron.php; sleep 60; done & wait"
 
+  dockerize:
+    image: jwilder/dockerize:0.6.1
+
   elasticsearch:
     image: elasticsearch:8.10.1
     environment:
@@ -27,8 +30,31 @@ services:
         soft: -1
         hard: -1
 
-  dockerize:
-    image: jwilder/dockerize:0.6.1
+  hook:
+    build:
+      context: .
+      args:
+        DOCKER_USER: ${DOCKER_USER:-1000}
+    user: ${DOCKER_USER:-1000}
+    environment:
+      PYLINTHOME: /app/.pylint.d
+      HOOK_MOODLE_URL: ${HOOK_MOODLE_URL:-http://moodle}
+      HOOK_MOODLE_WEBSERVICE_TOKEN: ${HOOK_MOODLE_WEBSERVICE_TOKEN:-32323232323232323232323232323232}
+    ports:
+      - ${HOOK_API_PORT:-8000}:8000
+    volumes:
+      - .:/app
+    command: [
+      "uvicorn",
+      "hook.main:app",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--reload"
+    ]
+    depends_on:
+      - moodle
 
   mailpit:
     image: axllent/mailpit:v1.8.4
@@ -38,7 +64,7 @@ services:
 
   moodle:
     build:
-      context: .
+      context: ./config/moodle
       args:
         DOCKER_USER: ${DOCKER_USER:-1000}
     user: ${DOCKER_USER:-1000}

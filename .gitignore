@@ -1,2 +1,18 @@
+# Python
+__pycache__
+*.pyc
+**/__pycache__
+**/*.pyc
+build/
+dist/
+**/*.egg-info
+venv
+.venv
+
+# Test & lint
+.coverage
+.pylint.d
+.pytest_cache
+
 # Data
 /data

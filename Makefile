@@ -16,6 +16,8 @@ HOOK_MOODLE_ADMIN_PASSWORD       ?= password
 HOOK_MOODLE_ADMIN_EMAIL          ?= admin@example.com
 HOOK_MOODLE_SITE_NAME            ?= Hook
 HOOK_MOODLE_DEMOCOURSE_1         ?= https://moodle.net/.pkg/@moodlenet/ed-resource/dl/ed-resource/uHFOlHUh/063_PFB1.mbz
+HOOK_MOODLE_DEMOCOURSE_2         ?= https://moodle.net/.pkg/@moodlenet/ed-resource/dl/ed-resource/ow9swOdh/352_DL2023backup_moodle2_course_66_digital_literacy_20230627_1204_nu.mbz
+HOOK_MOODLE_DEMOCOURSE_3         ?= https://moodle.net/.pkg/@moodlenet/ed-resource/dl/ed-resource/QTQj2Z0m/278_Applied_English.mbz
 HOOK_MOODLE_PLUGIN_LOGSTORE_GIT  ?= https://github.com/xAPI-vle/moodle-logstore_xapi.git
 HOOK_MOODLE_PLUGIN_LOGSTORE_TAG  ?= v4.7.0
 
@@ -53,6 +55,12 @@ data/moodle/html/config.php:
 
 data/moodle/html/demo_course_1.mbz:
 	@$(COMPOSE_RUN) curl $(HOOK_MOODLE_DEMOCOURSE_1) -o /var/www/html/demo_course_1.mbz
+
+data/moodle/html/demo_course_2.mbz:
+	@$(COMPOSE_RUN) curl $(HOOK_MOODLE_DEMOCOURSE_2) -o /var/www/html/demo_course_2.mbz
+
+data/moodle/html/demo_course_3.mbz:
+	@$(COMPOSE_RUN) curl $(HOOK_MOODLE_DEMOCOURSE_3) -o /var/www/html/demo_course_3.mbz
 
 data/moodle/html/admin/tool/log/store/xapi:
 	mkdir -p data/moodle/html/admin/tool/log/store
@@ -94,6 +102,8 @@ build: \
 	data/moodle/moodledata \
 	data/moodle/html/config.php \
 	data/moodle/html/demo_course_1.mbz \
+	data/moodle/html/demo_course_2.mbz \
+	data/moodle/html/demo_course_3.mbz \
 	data/moodle/html/admin/tool/log/store/xapi \
 	data/ralph/auth.json
 	$(COMPOSE) build hook moodle
@@ -166,6 +176,14 @@ migrate:  ## run moodle database migrations
 		 ./config/mysql/webservices.sh
 	@$(COMPOSE_RUN) moodle php admin/cli/restore_backup.php \
 		--file=/var/www/html/demo_course_1.mbz \
+		--categoryid=1 \
+		|| true
+	@$(COMPOSE_RUN) moodle php admin/cli/restore_backup.php \
+		--file=/var/www/html/demo_course_2.mbz \
+		--categoryid=1 \
+		|| true
+	@$(COMPOSE_RUN) moodle php admin/cli/restore_backup.php \
+		--file=/var/www/html/demo_course_3.mbz \
 		--categoryid=1 \
 		|| true
 	@$(COMPOSE_RUN) moodle /bin/bash -c "\

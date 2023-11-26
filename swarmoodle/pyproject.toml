@@ -1,13 +1,13 @@
 #
-# Hook package
+# swarmoodle package
 #
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hook"
-description = "Human Open Online Knowledge"
+name = "swarmoodle"
+description = "Swarm Moodle with OULAD students"
 readme = "README.md"
 authors = [
   { name="SergioSim", email="sergio.simonian@etu.univ-cotedazur.fr" },
@@ -22,11 +22,16 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 license = {file = "LICENSE.md"}
-keywords = ["Hook", "Analytics"]
+keywords = ["swarmoodle"]
 dependencies = [
-    "fastapi==0.104.1",
-    "uvicorn[standard]==0.24.0",
+    "beautifulsoup4==4.12.2",
+    "Faker==19.13.0",
     "httpx==0.25.1",
+    "locust==2.18.1",
+    "pandas==2.1.2",
+    "pydantic==2.4.2",
+    "pydantic-settings==2.0.3",
+    "redis==5.0.1",
 ]
 dynamic = ["version"]
 
@@ -36,7 +41,6 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
-    "asgi-lifespan==2.1.0",
     "bandit==1.7.5",
     "black==23.10.1",
     "flake8==6.1.0",
@@ -51,10 +55,10 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["hook"]
+packages = ["swarmoodle"]
 
 [tool.setuptools.dynamic]
-version = { attr = "hook.__version__" }
+version = { attr = "swarmoodle.__version__" }
 
 #
 # Third-party packages configuration
@@ -69,7 +73,7 @@ profile = "black"
 
 # Third party packages configuration
 [tool.pytest.ini_options]
-addopts = "-v --cov-report term-missing --cov=hook"
+addopts = "-v --cov-report term-missing --cov=swarmoodle"
 python_files = [
     "test_*.py",
     "tests.py",

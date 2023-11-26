@@ -705,5 +705,18 @@ DELETE FROM mdl_external_tokens WHERE id = 1;
 INSERT INTO mdl_external_tokens VALUES
 (1, '${HOOK_MOODLE_WEBSERVICE_TOKEN}', '${HOOK_MOODLE_WEBSERVICE_PRIVATE_TOKEN}', 0, 2, 2, NULL, 1, 2, NULL, 0, UNIX_TIMESTAMP(), NULL);
 
+/* Add custom profile fields matching OULAD student_info table columns. */
+DELETE FROM mdl_user_info_field;
+INSERT INTO mdl_user_info_field VALUES
+(NULL, 'gender', 'Gender', 'text', '<p dir="ltr" style="text-align: left;">Gender.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'region', 'Region', 'text', '<p dir="ltr" style="text-align: left;">Geographic region.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'highest_education', 'Highest education', 'text', '<p dir="ltr" style="text-align: left;">Highest education level.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'imd_band', 'Index of Multiple Depravation band', 'text', '<p dir="ltr" style="text-align: left;">Index of Multiple Depravation band.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'age_band', 'Age band', 'text', '<p dir="ltr" style="text-align: left;">Age band.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'num_of_prev_attempts', 'Number of previous attempts', 'text', '<p dir="ltr" style="text-align: left;">Number of previous attempts.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'studied_credits', 'Total number of credits', 'text', '<p dir="ltr" style="text-align: left;">Total number of credits.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'disability', 'Disability', 'text', '<p dir="ltr" style="text-align: left;">Disability.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL),
+(NULL, 'final_result', 'Final result', 'text', '<p dir="ltr" style="text-align: left;">Final result.<br></p>', 1, 1, 1, 0, 0, 2, 0, 1, "", 0, 30, 2048, 0, NULL, NULL);
+
 COMMIT;
 EOF

@@ -18,7 +18,13 @@ $CFG->dboptions = array (
   'dbcollation' => 'utf8mb4_bin',
 );
 
-$CFG->wwwroot              = 'http://localhost:8080';
+if ($_SERVER['HTTP_HOST'] == 'localhost:' . getenv('MOODLE_APACHE_PORT'))
+{
+  $CFG->wwwroot            = 'http://localhost:' . getenv('MOODLE_APACHE_PORT');
+} else {
+  $CFG->wwwroot            = 'http://moodle';
+}
+
 $CFG->dataroot             = '/var/www/moodledata';
 $CFG->admin                = 'admin';
 
@@ -29,10 +35,18 @@ $CFG->noreplyaddress       = 'noreply@example.com';
 $CFG->debug                    = (E_ALL | E_STRICT);
 $CFG->cronclionly              = 0;
 $CFG->curlsecurityblockedhosts = "127.0.0.1";
-$CFG->reverseproxy             = 1;
+// $CFG->reverseproxy             = 1;
 $CFG->enablewebservices        = 1;
 $CFG->enablewsdocumentation    = 1;
 $CFG->webserviceprotocols      = "rest";
+
+$CFG->forced_plugin_settings['logstore_xapi'] = [
+  'backgroundmode' => 0,
+  'endpoint' => getenv('HOOK_RALPH_URL') . '/xAPI/statements',
+  'username' => getenv('HOOK_RALPH_LRS_AUTH_USER_NAME'),
+  'password' => getenv('HOOK_RALPH_LRS_AUTH_USER_PASSWORD'),
+];
+$CFG->forced_plugin_settings['tool_log']['enabled_stores'] = 'logstore_standard,logstore_xapi';
 
 require_once(__DIR__ . '/lib/setup.php');
 

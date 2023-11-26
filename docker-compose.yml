@@ -38,6 +38,7 @@ services:
     user: ${DOCKER_USER:-1000}
     environment:
       PYLINTHOME: /app/.pylint.d
+      HOOK_MOODLE_PATCHED_URL: http://localhost:${HOOK_MOODLE_APACHE_PORT:-8080}
       HOOK_MOODLE_URL: ${HOOK_MOODLE_URL:-http://moodle}
       HOOK_MOODLE_WEBSERVICE_TOKEN: ${HOOK_MOODLE_WEBSERVICE_TOKEN:-32323232323232323232323232323232}
     ports:
@@ -56,6 +57,33 @@ services:
     depends_on:
       - moodle
 
+  swarmoodle:
+    build:
+      context: ./swarmoodle
+      args:
+        DOCKER_USER: ${DOCKER_USER:-1000}
+    user: ${DOCKER_USER:-1000}
+    ports:
+     - "8089:8089"
+    volumes:
+      - ./swarmoodle:/app
+    environment:
+      LOCUST_HOST: http://moodle
+      LOCUST_USERS: ${HOOK_SWARMOODLE_MOODLE_STUDENTS:-1}
+      LOCUST_SPAWN_RATE: ${HOOK_SWARMOODLE_LOCUST_SPAWN_RATE:-50}
+      SWARMOODLE_HOOK_URL: http://hook:8000
+      SWARMOODLE_MOODLE_DELETE_USERS_AFTER_RUN: ${HOOK_SWARMOODLE_MOODLE_DELETE_USERS_AFTER_RUN:-0}
+      SWARMOODLE_MOODLE_COURSE_ID: ${HOOK_SWARMOODLE_MOODLE_COURSE_ID:-2}
+      SWARMOODLE_MOODLE_WEBSERVICE_TOKEN: ${HOOK_MOODLE_WEBSERVICE_TOKEN:-32323232323232323232323232323232}
+      SWARMOODLE_OULAD_CODE_MODULE: ${HOOK_SWARMOODLE_OULAD_CODE_MODULE:-AAA}
+      SWARMOODLE_OULAD_CODE_PRESENTATION: ${HOOK_SWARMOODLE_OULAD_CODE_PRESENTATION:-2013J}
+      SWARMOODLE_OULAD_DEFAULT_PATH: /app/data/OULAD
+      SWARMOODLE_REQUEST_MILLISECONDS_DURATION: ${HOOK_SWARMOODLE_REQUEST_MILLISECONDS_DURATION:-400}
+      SWARMOODLE_SIMULATE_FIXED_DAY_DURATION: ${HOOK_SWARMOODLE_SIMULATE_FIXED_DAY_DURATION:-0}
+    depends_on:
+      - hook
+      - redis
+
   mailpit:
     image: axllent/mailpit:v1.8.4
     restart: unless-stopped
@@ -69,9 +97,14 @@ services:
         DOCKER_USER: ${DOCKER_USER:-1000}
     user: ${DOCKER_USER:-1000}
     environment:
+      MOODLE_APACHE_PORT: ${HOOK_MOODLE_APACHE_PORT:-8080}
       MOODLE_DATABASE_NAME: ${HOOK_MOODLE_MYSQL_DATABASE:-moodle}
-      MOODLE_DATABASE_USER: ${HOOK_MOODLE_MYSQL_USER:-moodle}
       MOODLE_DATABASE_PASSWORD: ${HOOK_MOODLE_MYSQL_PASSWORD:-password}
+      MOODLE_DATABASE_USER: ${HOOK_MOODLE_MYSQL_USER:-moodle}
+      HOOK_RALPH_URL: ${HOOK_RALPH_URL:-http://ralph}
+      HOOK_RALPH_LRS_AUTH_USER_NAME: ${HOOK_RALPH_LRS_AUTH_USER_NAME:-ralph}
+      HOOK_RALPH_LRS_AUTH_USER_PASSWORD: ${HOOK_RALPH_LRS_AUTH_USER_PASSWORD:-password}
+      PHP_INI-max_input_vars: 90000
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
     ports:
@@ -91,10 +124,10 @@ services:
       - SYS_NICE
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${HOOK_MOODLE_MYSQL_ROOT_PASSWORD:-password}
       MYSQL_DATABASE: ${HOOK_MOODLE_MYSQL_DATABASE:-moodle}
-      MYSQL_USER: ${HOOK_MOODLE_MYSQL_USER:-moodle}
       MYSQL_PASSWORD: ${HOOK_MOODLE_MYSQL_PASSWORD:-password}
+      MYSQL_ROOT_PASSWORD: ${HOOK_MOODLE_MYSQL_ROOT_PASSWORD:-password}
+      MYSQL_USER: ${HOOK_MOODLE_MYSQL_USER:-moodle}
     volumes:
       - mysqldata:/var/lib/mysql
     command: >
@@ -123,10 +156,19 @@ services:
       - ./data/ralph:/app
     depends_on:
       - elasticsearch
+  
+  redis:
+    image: redis:7.2.2
+    restart: always
+    volumes: 
+      - redisdata:/data
 
 volumes:
   elasticsearchdata:
     driver: local
 
   mysqldata:
+    driver: local
+
+  redisdata:
     driver: local

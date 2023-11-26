@@ -9,21 +9,12 @@ dist/
 venv
 .venv
 
-# Project configuration and data directories
-config
+# Project data directories
 data
 
 # Docker
 .dockerignore
 Dockerfile
-docker-compose.*
-
-# Build
-bin/
-Makefile
-
-# Swarmoodle
-swarmoodle/
 
 # Development/test cache & configurations
 .cache

@@ -45,8 +45,8 @@ def patch_moodle_url(url: str) -> str:
 @app.get("/")
 async def root(request: Request, raw: bool = False):
     """Get Moodle site info."""
-    params = {"wsfunction": "core_webservice_get_site_info"}
-    result = (await request.app.moodle.post("/", params=params)).json()
+    data = {"wsfunction": "core_webservice_get_site_info"}
+    result = (await request.app.moodle.post("/", data=data)).json()
     if raw:
         return result
 
@@ -59,8 +59,8 @@ async def root(request: Request, raw: bool = False):
 @app.get("/courses")
 async def courses(request: Request, raw: bool = False):
     """Get the list of visible Moodle courses."""
-    params = {"wsfunction": "core_course_get_courses"}
-    result = (await request.app.moodle.post("/", params=params)).json()
+    data = {"wsfunction": "core_course_get_courses"}
+    result = (await request.app.moodle.post("/", data=data)).json()
     if raw:
         return result
 
@@ -77,13 +77,15 @@ async def courses(request: Request, raw: bool = False):
 
 
 @app.get("/courses/{course_id}")
-async def course(request: Request, course_id: int, raw: bool = False):
+async def course(
+    request: Request, course_id: int, raw: bool = False, html: bool = True
+):
     """Get the list of visible Moodle course modules by `course_id`."""
-    params = {
+    data = {
         "wsfunction": "core_course_get_contents",
         "courseid": course_id,
     }
-    result = (await request.app.moodle.post("/", params=params)).json()
+    result = (await request.app.moodle.post("/", data=data)).json()
     if raw:
         return result
 
@@ -112,8 +114,10 @@ async def course(request: Request, course_id: int, raw: bool = False):
                 for content in module.get("contents", [])
                 if content.get("type") != "content" and content.get("fileurl")
             ]
-            if module.get("modname") != "quiz"
-            else (await quiz(request, int(module.get("instance")))),
+            if module.get("modname") != "quiz" and html
+            else (await quiz(request, int(module.get("instance"))))
+            if html
+            else None,
         }
         for section in result
         for module in section.get("modules", [])
@@ -128,13 +132,13 @@ async def course(request: Request, course_id: int, raw: bool = False):
 @app.get("/quiz/{quiz_id}")
 async def quiz(request: Request, quiz_id: int, raw: bool = False):
     """Get Moodle quiz contents by `quiz_id`."""
-    params = {
+    data = {
         "wsfunction": "mod_quiz_get_user_attempts",
         "quizid": quiz_id,
         "status": "all",
         "includepreviews": 1,
     }
-    attempts = (await request.app.moodle.post("/", params=params)).json()
+    attempts = (await request.app.moodle.post("/", data=data)).json()
     # Try to retrieve existing attempt.
     attempt = next(
         (x["id"] for x in attempts.get("attempts", []) if x["state"] == "inprogress"),
@@ -143,29 +147,28 @@ async def quiz(request: Request, quiz_id: int, raw: bool = False):
 
     # Create new attempt if no previous attempt exists.
     if not attempt:
-        params = {
+        data = {
             "wsfunction": "mod_quiz_start_attempt",
             "quizid": quiz_id,
         }
-        # return (await request.app.moodle.post("/", params=params)).json()
-        attempt = (await request.app.moodle.post("/", params=params)).json()["attempt"][
+        attempt = (await request.app.moodle.post("/", data=data)).json()["attempt"][
             "id"
         ]
 
     # Submit attempt.
-    params = {
+    data = {
         "wsfunction": "mod_quiz_process_attempt",
         "attemptid": attempt,
         "finishattempt": 1,
     }
-    (await request.app.moodle.post("/", params=params)).json()
+    (await request.app.moodle.post("/", data=data)).json()
 
     # Get attempt result.
-    params = {
+    data = {
         "wsfunction": "mod_quiz_get_attempt_review",
         "attemptid": attempt,
     }
-    result = (await request.app.moodle.post("/", params=params)).json()
+    result = (await request.app.moodle.post("/", data=data)).json()
     if raw:
         return result
     pattern = r"<!\[CDATA\[(.*?)\]\]>"

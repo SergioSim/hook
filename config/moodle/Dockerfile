@@ -9,8 +9,6 @@ RUN chown -R ${DOCKER_USER:-1000} \
 
 COPY apache_virtual_host.conf /etc/apache2/sites-available/000-default.conf
 
-RUN a2enmod headers
-
 # Un-privileged user running the application
 USER ${DOCKER_USER:-1000}
 

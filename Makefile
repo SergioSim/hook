@@ -33,6 +33,15 @@ HOOK_MOODLE_URL                      ?= http://moodle
 HOOK_MOODLE_WEBSERVICE_TOKEN         ?= 32323232323232323232323232323232
 HOOK_MOODLE_WEBSERVICE_PRIVATE_TOKEN ?= 6464646464646464646464646464646464646464646464646464646464646464
 
+# -- Kafka
+HOOK_KAFKA_TOPIC             ?= statements
+HOOK_KAFKA_BOOTSTRAP_SERVERS ?= kafka:9092
+
+# -- Spark
+HOOK_SPARK_MASTER_URL          ?= spark://spark-master:7077
+HOOK_SPARK_MASTER_WEB_UI_PORT  ?= 8090
+HOOK_SPARK_WORKERS             ?= 1
+
 # -- Swarmoodle
 HOOK_SWARMOODLE_LOCUST_SPAWN_RATE             ?= 50
 HOOK_SWARMOODLE_MOODLE_COURSE_ID              ?= 2
@@ -75,6 +84,11 @@ COMPOSE      = DOCKER_USER="$(DOCKER_USER)" \
 			   HOOK_RALPH_LRS_AUTH_USER_NAME="${HOOK_RALPH_LRS_AUTH_USER_NAME}" \
 			   HOOK_RALPH_LRS_AUTH_USER_PASSWORD="${HOOK_RALPH_LRS_AUTH_USER_PASSWORD}" \
 			   HOOK_RALPH_URL="${HOOK_RALPH_URL}" \
+			   HOOK_KAFKA_TOPIC="${HOOK_KAFKA_TOPIC}" \
+			   HOOK_KAFKA_BOOTSTRAP_SERVERS="${HOOK_KAFKA_BOOTSTRAP_SERVERS}" \
+			   HOOK_SPARK_MASTER_URL="${HOOK_SPARK_MASTER_URL}" \
+			   HOOK_SPARK_MASTER_WEB_UI_PORT="${HOOK_SPARK_MASTER_WEB_UI_PORT}" \
+			   HOOK_SPARK_WORKERS="${HOOK_SPARK_WORKERS}" \
                docker compose
 COMPOSE_RUN  = $(COMPOSE) run --rm
 
@@ -253,9 +267,13 @@ migrate:  ## run moodle database migrations
 	@$(COMPOSE_RUN) curl -X PUT http://elasticsearch:9200/$(HOOK_RALPH_ELASTICSEARCH_INDEX)/_settings \
 		-H 'Content-Type: application/json' \
 		-d '{"index": {"number_of_replicas": 0}}'
+
+	@$(COMPOSE_RUN) kafka kafka-topics.sh --create \
+		--topic "${HOOK_KAFKA_TOPIC}" \
+		--bootstrap-server "${HOOK_KAFKA_BOOTSTRAP_SERVERS}"
 .PHONY: migrate
 
-run: ## run the hook and moodle containers
+run: ## run the hook, moodle and spark containers
 	@$(COMPOSE) up -d hook
 .PHONY: run
 

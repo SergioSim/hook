@@ -105,4 +105,4 @@ def test_main_patch_moodle_url(monkeypatch):
     """Test the `patch_moodle_url` function."""
     monkeypatch.setenv("HOOK_MOODLE_URL", "http://foo")
     assert patch_moodle_url("http://bar:8080/hello/world") == "http://foo/hello/world"
-    assert patch_moodle_url(None) is None
+    assert patch_moodle_url(None, None) is None

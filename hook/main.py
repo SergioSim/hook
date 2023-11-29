@@ -1,44 +1,84 @@
 """Hook API main entrypoint."""
 
-import os
+import asyncio
+import json
+import logging
 import re
 from contextlib import asynccontextmanager
+from typing import Union
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, Request
+from confluent_kafka import Producer
+from fastapi import FastAPI, Request, WebSocket
+from pyspark.sql import SparkSession
+
+from hook.conf import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
-    """Add moodle clients to the FastAPI app at startup."""
-    moodle_url = os.environ.get("HOOK_MOODLE_URL")
-    token = os.environ.get("HOOK_MOODLE_WEBSERVICE_TOKEN")
+    """Add moodle settings and clients to the FastAPI app at startup."""
+    settings = get_settings()
+    token = settings.moodle_webservice_token
+    fastapi_app.settings = settings
     fastapi_app.moodle = httpx.AsyncClient(
-        base_url=f"{moodle_url}/webservice/rest/server.php",
+        base_url=f"{settings.moodle_url}/webservice/rest/server.php",
         params={"wstoken": token, "moodlewsrestformat": "json"},
     )
     fastapi_app.moodle_file = httpx.AsyncClient(
-        base_url=f"{moodle_url}/webservice/pluginfile.php", params={"token": token}
+        base_url=f"{settings.moodle_url}/webservice/pluginfile.php",
+        params={"token": token},
+    )
+    fastapi_app.producer = Producer(
+        {"bootstrap.servers": settings.kafka_bootstrap_servers}
+    )
+    fastapi_app.spark = (
+        SparkSession.builder.appName("Hook")
+        .config("spark.jars.ivy", "/tmp/.ivy")
+        .config("spark.streaming.stopGracefullyOnShutdown", True)
+        .config(
+            "spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0"
+        )
+        .master(str(settings.spark_master_url))
+        .getOrCreate()
+    )
+    statement_counts = (
+        fastapi_app.spark.readStream.format("kafka")
+        .option("kafka.bootstrap.servers", settings.kafka_bootstrap_servers)
+        .option("subscribe", settings.kafka_topic)
+        .option("failOnDataLoss", True)
+        .load()
+        .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+        .selectExpr("COUNT(value)")
+        .writeStream.outputMode("complete")
+        .format("memory")
+        .queryName("statement_counts")
+        .start()
     )
 
     yield
 
     await fastapi_app.moodle.aclose()
     await fastapi_app.moodle_file.aclose()
+    fastapi_app.producer.flush()
+    statement_counts.stop()
+    fastapi_app.spark.interruptAll()
+    fastapi_app.spark.stop()
 
 
 app = FastAPI(lifespan=lifespan)
 
 
-def patch_moodle_url(url: str) -> str:
+def patch_moodle_url(request: Request, url: str) -> str:
     """Replace the hostname in `url` with the `HOOK_MOODLE_URL` value."""
     if not url:
         return None
 
-    moodle_url = urlparse(os.environ.get("HOOK_MOODLE_URL"))
-    moodle_netloc = moodle_url.netloc
-    moodle_scheme = moodle_url.scheme
+    moodle_netloc = request.app.settings.moodle_url.host
+    moodle_scheme = request.app.settings.moodle_url.scheme
     return urlparse(url)._replace(netloc=moodle_netloc, scheme=moodle_scheme).geturl()
 
 
@@ -52,7 +92,7 @@ async def root(request: Request, raw: bool = False):
 
     return {
         "sitename": result.get("sitename"),
-        "siteurl": patch_moodle_url(result.get("siteurl")),
+        "siteurl": patch_moodle_url(request, result.get("siteurl")),
     }
 
 
@@ -68,7 +108,7 @@ async def courses(request: Request, raw: bool = False):
         {
             "id": course.get("id"),
             "fullname": course.get("fullname"),
-            "url": patch_moodle_url(f"/course/view.php?id={course.get('id')}"),
+            "url": patch_moodle_url(request, f"/course/view.php?id={course.get('id')}"),
             "summary": course.get("summary"),
         }
         for course in result
@@ -96,16 +136,16 @@ async def course(
             "instance": module.get("instance"),
             "name": module.get("name"),
             "modname": module.get("modname"),
-            "url": patch_moodle_url(module.get("url")),
+            "url": patch_moodle_url(request, module.get("url")),
             "contents": [
                 {
                     "type": content.get("type"),
                     "mimetype": content.get("mimetype", "text/html"),
-                    "fileurl": patch_moodle_url(content["fileurl"])
+                    "fileurl": patch_moodle_url(request, content["fileurl"])
                     if content.get("type") == "file"
                     else content["fileurl"],
                     "content": (
-                        await get_file(patch_moodle_url(content["fileurl"]))
+                        await get_file(patch_moodle_url(request, content["fileurl"]))
                     ).text
                     if content.get("type") == "file"
                     and content.get("mimetype", "text/html").startswith("text")
@@ -181,3 +221,34 @@ async def quiz(request: Request, quiz_id: int, raw: bool = False):
         }
         for question in result.get("questions", [])
     ]
+
+
+@app.post("/forward")
+@app.put("/forward")
+async def forward(request: Request, statements: Union[dict, list[dict]]):
+    """Forward statements to Kafka `statements` topic."""
+    if isinstance(statements, dict):
+        statements = [statements]
+
+    statements = json.dumps(statements)
+    topic = request.app.settings.kafka_topic
+    request.app.producer.produce(topic, statements, callback=delivery_callback)
+    request.app.producer.flush()
+    return statements
+
+
+def delivery_callback(err, _):
+    """Kafka delivery callback. Log in case of an error."""
+    if err:
+        logger.error("Failed message delivery: %s", err)
+
+
+@app.websocket("/stats")
+async def stats(websocket: WebSocket):
+    """Statistics endpoint."""
+    await websocket.accept()
+    while True:
+        result = websocket.app.spark.sql("SELECT * FROM statement_counts").first()
+        if result:
+            await websocket.send_text(f"Received statements: {result['count(value)']}")
+        await asyncio.sleep(0.5)
